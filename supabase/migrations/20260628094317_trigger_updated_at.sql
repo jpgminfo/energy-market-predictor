@@ -1,5 +1,5 @@
 CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGWER AS $$
+RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
   RETURN NEW;
