@@ -33,7 +33,6 @@ CREATE TRIGGER set_updated_at_areas
 -- Okinawa included as area master even though not in JEPX spot market
 -- SYSTEM is a pseudo-area representing the system price (no area_number)
 INSERT INTO areas (area_code, area_number, area_name_ja, area_name_en, valid_from) VALUES
-    ('SYSTEM',   NULL, 'システムプライス', 'System Price', '2016-04-01'),
     ('HOKKAIDO',    1, '北海道',           'Hokkaido',     '2016-04-01'),
     ('TOHOKU',      2, '東北',             'Tohoku',       '2016-04-01'),
     ('TOKYO',       3, '東京',             'Tokyo',        '2016-04-01'),
