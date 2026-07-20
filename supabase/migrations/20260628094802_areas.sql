@@ -31,7 +31,6 @@ CREATE TRIGGER set_updated_at_areas
 -- Seed data
 -- valid_from = 2016-04-01: Japan electricity market liberalization date
 -- Okinawa included as area master even though not in JEPX spot market
--- SYSTEM is a pseudo-area representing the system price (no area_number)
 INSERT INTO areas (area_code, area_number, area_name_ja, area_name_en, valid_from) VALUES
     ('HOKKAIDO',    1, '北海道',           'Hokkaido',     '2016-04-01'),
     ('TOHOKU',      2, '東北',             'Tohoku',       '2016-04-01'),
