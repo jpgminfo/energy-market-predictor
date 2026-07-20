@@ -71,7 +71,7 @@ def parse_csv(csv_file_path):
     summaries = []
     prices = []
 
-    with open(csv_file_path, 'r', encoding='utf-8-sig') as f:
+    with open(csv_file_path, 'r', encoding='shift-jis') as f:
         reader = csv.reader(f)
         for _ in range(3):
             next(reader)
