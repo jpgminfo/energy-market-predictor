@@ -18,8 +18,8 @@ CREATE TABLE areas (
 );
 
 COMMENT ON TABLE areas IS 'TSO area master. Area definitions fixed since Japan market liberalization 2016-04-01.';
-COMMENT ON COLUMN areas.area_code IS 'Readable identifier used as FK across all tables. e.g. TOKYO, KANSAI, SYSTEM';
-COMMENT ON COLUMN areas.area_number IS 'Official TSO number 1-10 per OCCTO/JEPX convention. NULL for SYSTEM pseudo-area.';
+COMMENT ON COLUMN areas.area_code IS 'Readable identifier used as FK across all tables. e.g. TOKYO, KANSAI.';
+COMMENT ON COLUMN areas.area_number IS 'Official TSO number 1-10 per OCCTO/JEPX convention.';
 COMMENT ON COLUMN areas.valid_from IS 'Date this area definition became effective.';
 COMMENT ON COLUMN areas.valid_to IS 'Date this area definition was superseded. NULL = currently active.';
 
