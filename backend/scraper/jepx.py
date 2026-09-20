@@ -44,16 +44,18 @@ def download_csv():
         try:
             page.goto(url, wait_until="networkidle")
 
-            # Click download button
-            with page.expect_download() as download_info:
-                # Click the CSV download button (section 6, 3rd list item)
-                page.locator("section:nth-of-type(6) ul li:nth-child(3) button").click()
+            # Step 1 — click the initial download button to open modal
+            page.locator("section:nth-of-type(6) ul li:nth-child(3) button").click()
 
-                # Select current fiscal year option
-                page.locator("form select option:nth-child(1)").click()
+            # Step 2 — wait for modal to appear
+            page.wait_for_selector("#dl-select--spot_summary", state="visible")
 
-                # Click final download button
-                page.locator("form button").click()
+            # Step 3 — select fiscal year
+            page.locator("#dl-select--spot_summary").select_option(f"spot_summary_{fiscal_year()}.csv")
+
+            # Step 4 — click download button and capture download
+            with page.expect_download(timeout=30000) as download_info:
+                page.locator("#modal-box--spot_summary button").click()
 
             download = download_info.value
             save_path = os.path.join(DOWNLOAD_DIR, f"spot_summary_{fiscal_year()}.csv")
