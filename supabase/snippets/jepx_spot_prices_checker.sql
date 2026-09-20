@@ -21,3 +21,5 @@ WHERE target_date BETWEEN '2018-09-06' AND '2018-09-26'
 AND area_code = 'HOKKAIDO'
 GROUP BY target_date
 ORDER BY target_date;
+
+select * from jepx_spot_summary;

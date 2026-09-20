@@ -309,7 +309,7 @@ const s: Record<string, React.CSSProperties> = {
   root: {
     minHeight: '100vh',
     backgroundColor: '#ffffff',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", sans-serif',
+    fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI',
     color: '#111',
   },
 
