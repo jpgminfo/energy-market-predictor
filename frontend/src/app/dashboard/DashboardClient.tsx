@@ -67,7 +67,7 @@ export default function DashboardClient({ isLoggedIn, userEmail }: Props) {
         if (!isLoggedIn) endDate.setDate(endDate.getDate() - 1)
 
         const startDate = new Date(endDate)
-        startDate.setDate(startDate.getDate() - 29)
+        startDate.setDate(startDate.getDate() - 89)
 
         const fmt = (d: Date) => d.toISOString().split('T')[0]
         const dateFrom = fmt(startDate)
@@ -127,7 +127,7 @@ export default function DashboardClient({ isLoggedIn, userEmail }: Props) {
     <div style={s.root}>
       {/* Nav */}
       <nav style={s.nav}>
-        <span style={s.brand}>⚡ EnergyPredict</span>
+        <span style={s.brand}>Information</span>
         <div style={s.navRight}>
           {isLoggedIn ? (
             <>
@@ -150,9 +150,9 @@ export default function DashboardClient({ isLoggedIn, userEmail }: Props) {
 
         {/* Page header */}
         <div style={s.pageHeader}>
-          <h1 style={s.pageTitle}>JEPX Market Overview</h1>
+          <h1 style={s.pageTitle}>JEPX</h1>
           <p style={s.pageSubtitle}>
-            Japan Electric Power Exchange · Spot Market
+            Spot Market
             {!isLoggedIn && (
               <span style={s.trialNote}> · Showing data up to yesterday</span>
             )}
@@ -309,7 +309,7 @@ const s: Record<string, React.CSSProperties> = {
   root: {
     minHeight: '100vh',
     backgroundColor: '#ffffff',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Inter", sans-serif',
     color: '#111',
   },
 
