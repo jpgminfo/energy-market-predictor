@@ -55,7 +55,7 @@ def download_csv():
 
             # Step 4 — click download button and capture download
             with page.expect_download(timeout=30000) as download_info:
-                page.locator("#modal-box--spot_summary button").click()
+                page.locator("#modal-box--spot_summary button[type='submit']").click()
 
             download = download_info.value
             save_path = os.path.join(DOWNLOAD_DIR, f"spot_summary_{fiscal_year()}.csv")

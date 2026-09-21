@@ -15,6 +15,7 @@ def setup_scheduler():
         replace_existing=True
     )
     scheduler.start()
+    print("[Scheduler] JEPX daily job scheduled at 10:30 JST")
 
 if __name__ == "__main__":
     # Manual trigger — run scraper immediately without downloading
