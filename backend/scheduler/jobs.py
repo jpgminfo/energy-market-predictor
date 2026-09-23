@@ -8,8 +8,8 @@ def setup_scheduler():
     scheduler.add_job(
         run_jepx,
         'cron',
-        hour=14,
-        minute=27,
+        hour=10,
+        minute=30,
         kwargs={"download": True},
         id="jepx_daily",
         replace_existing=True

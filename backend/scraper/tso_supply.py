@@ -18,7 +18,7 @@ from db.connection import get_connection
 # 07  Chugoku     Select target year and month and click download.
 # 08  Shikoku     N/A
 # 09  Kyushu      N/A
-# 10  Okinawa     N/A
+# 10  Okinawa     Excluded from scope '10': lambda ym: f"https://www.okiden.co.jp/business-support/service/supply-and-demand/csv/eria_jukyu_{ym}_10.csv"
 
 DOWNLOAD_DIR = os.getenv("JEPX_DOWNLOAD_DIR", "C:\\Users\\kotas\\Downloads")
 
@@ -32,8 +32,7 @@ TSO_AREA_MAP = {
     '06': 'KANSAI',
     '07': 'CHUGOKU',
     '08': 'SHIKOKU',
-    '09': 'KYUSHU',
-    '10': 'OKINAWA'
+    '09': 'KYUSHU'
 }
 
 # TSOs with direct CSV download URL (no browser interaction needed)
@@ -43,8 +42,7 @@ DIRECT_DOWNLOAD_TSOS = {
     '04': lambda ym: f"https://powergrid.chuden.co.jp/denki_yoho_content_data/eria_jukyu_{ym}_04.csv",
     '06': lambda ym: f"https://www.kansai-td.co.jp/interchange/denkiyoho/area-performance/eria_jukyu_{ym}_06.csv",
     '08': lambda ym: f"https://www.yonden.co.jp/nw/supply_demand/csv/eria_jukyu_{ym}_08.csv",
-    '09': lambda ym: f"https://www.kyuden.co.jp/td_area_jukyu/csv/eria_jukyu_{ym}_09.csv",
-    '10': lambda ym: f"https://www.okiden.co.jp/business-support/service/supply-and-demand/csv/eria_jukyu_{ym}_10.csv"
+    '09': lambda ym: f"https://www.kyuden.co.jp/td_area_jukyu/csv/eria_jukyu_{ym}_09.csv"
 }
 
 # TSO 02 (Tohoku) uses zip download
@@ -284,18 +282,21 @@ def parse_csv(csv_path: str, area_code: str) -> list[dict]:
             'thermal_coal':       to_float(row[5]),
             'thermal_oil':        to_float(row[6]),
             'thermal_other':      to_float(row[7]),
-            'hydro':              to_float(row[8]),
-            'geothermal':         to_float(row[9]),
-            'biomass':            to_float(row[10]),
-            'solar_actual':       to_float(row[11]),
-            'solar_curtailment':  to_float(row[12]),
-            'wind_actual':        to_float(row[13]),
-            'wind_curtailment':   to_float(row[14]),
-            'pumped_storage':     to_float(row[15]),
-            'battery':            to_float(row[16]),
-            'interconnection':    to_float(row[17]),
-            'other':              to_float(row[18]),
-            'total_supply':       to_float(row[19]) if len(row) > 19 else None,
+            'thermal_other':      to_float(row[7]),
+            'thermal_curtailment': to_float(row[8]),
+            'hydro':              to_float(row[9]), 
+            'geothermal':         to_float(row[10]),
+            'biomass_actual':     to_float(row[11]),
+            'biomass_curtailment': to_float(row[12]),
+            'solar_actual':       to_float(row[13]),
+            'solar_curtailment':  to_float(row[14]),
+            'wind_actual':        to_float(row[15]),
+            'wind_curtailment':   to_float(row[16]),
+            'pumped_storage':     to_float(row[17]),
+            'battery':            to_float(row[18]),
+            'interconnection':    to_float(row[19]),
+            'other':              to_float(row[20]),
+            'total_supply':       to_float(row[21]) if len(row) > 21 else None,
         })
 
     log_status("INFO", f"Parsed {len(rows)} rows for {area_db_code}")
@@ -312,14 +313,14 @@ def insert_supply_demand(conn, rows: list[dict]):
         INSERT INTO tso_area_supply_demand (
             target_date, trading_slot, area_code,
             area_demand, nuclear, thermal_lng, thermal_coal, thermal_oil,
-            thermal_other, hydro, geothermal, biomass,
+            thermal_other, thermal_curtailment, hydro, geothermal, biomass_actual, biomass_curtailment,
             solar_actual, solar_curtailment, wind_actual, wind_curtailment,
             pumped_storage, battery, interconnection, other, total_supply
         ) VALUES (
             %(target_date)s, %(trading_slot)s, %(area_code)s,
             %(area_demand)s, %(nuclear)s, %(thermal_lng)s, %(thermal_coal)s,
-            %(thermal_oil)s, %(thermal_other)s, %(hydro)s, %(geothermal)s,
-            %(biomass)s, %(solar_actual)s, %(solar_curtailment)s,
+            %(thermal_oil)s, %(thermal_other)s, %(thermal_curtailment)s, %(hydro)s, %(geothermal)s,
+            %(biomass_actual)s, %(biomass_curtailment)s, %(solar_actual)s, %(solar_curtailment)s,
             %(wind_actual)s, %(wind_curtailment)s, %(pumped_storage)s,
             %(battery)s, %(interconnection)s, %(other)s, %(total_supply)s
         )
@@ -330,9 +331,11 @@ def insert_supply_demand(conn, rows: list[dict]):
             thermal_coal      = EXCLUDED.thermal_coal,
             thermal_oil       = EXCLUDED.thermal_oil,
             thermal_other     = EXCLUDED.thermal_other,
+            thermal_curtailment = EXCLUDED.thermal_curtailment,
             hydro             = EXCLUDED.hydro,
             geothermal        = EXCLUDED.geothermal,
-            biomass           = EXCLUDED.biomass,
+            biomass_actual    = EXCLUDED.biomass_actual,
+            biomass_curtailment = EXCLUDED.biomass_curtailment,
             solar_actual      = EXCLUDED.solar_actual,
             solar_curtailment = EXCLUDED.solar_curtailment,
             wind_actual       = EXCLUDED.wind_actual,
