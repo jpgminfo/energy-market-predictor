@@ -282,7 +282,6 @@ def parse_csv(csv_path: str, area_code: str) -> list[dict]:
             'thermal_coal':       to_float(row[5]),
             'thermal_oil':        to_float(row[6]),
             'thermal_other':      to_float(row[7]),
-            'thermal_other':      to_float(row[7]),
             'thermal_curtailment': to_float(row[8]),
             'hydro':              to_float(row[9]), 
             'geothermal':         to_float(row[10]),

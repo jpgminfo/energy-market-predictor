@@ -23,3 +23,4 @@ GROUP BY target_date
 ORDER BY target_date;
 
 select * from jepx_spot_summary;
+select * from jepx_spot_prices where target_date = '2026-09-24';
