@@ -9,4 +9,5 @@ backend/.env.*
 frontend/.env
 frontend/.env.*
 !.env.example
+
 !.env.local.example
