@@ -1,4 +1,3 @@
-# scraper/base/__init__.py
 # Common scraper infrastructure — logging, timestamp
 import time
 import os
@@ -10,19 +9,17 @@ from dotenv import load_dotenv
 def timestamp() -> str:
     return time.strftime("%Y%m%d%H%M%S")
 
-# 1. 環境変数の自動ロード (.env)
+# load environment variables from .env file
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-# ログ保存ディレクトリの設定
+# setting log directory
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
-# 2. 共通ロガー生成関数
+# common logger setup
 def setup_logger(name: str = "pipeline", level: int = logging.INFO) -> logging.Logger:
-    """
-    全処理モジュール共通のロガーを生成する
-    """
+
     logger = logging.getLogger(name)
     
     if logger.hasHandlers():
@@ -34,32 +31,32 @@ def setup_logger(name: str = "pipeline", level: int = logging.INFO) -> logging.L
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # コンソール出力
+    # console output
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
 
-    # ファイル出力 (pipeline/logs/scraper.log)
+    # file output (pipeline/logs/scraper.log)
     file_handler = logging.FileHandler(LOG_DIR / "scraper.log", encoding="utf-8")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
     return logger
 
-# 3. 各パイプライン処理共通のカスタム例外定義
+# custom exceptions for pipeline
 class PipelineError(Exception):
-    """パイプライン処理のベース例外クラス"""
+    """Pipeline processing base exception class"""
     pass
 
 class FetchError(PipelineError):
-    """データ取得 (fetcher.py) 時の例外"""
+    """data fetching (fetcher.py) exception"""
     pass
 
 class ParseError(PipelineError):
-    """データ変換・パース (parser.py) 時の例外"""
+    """data transformation & parsing (parser.py) exception"""
     pass
 
 class StorageError(PipelineError):
-    """DB・ストレージ処理 (storage.py / inserter.py) 時の例外"""
+    """Raised when Supabase Storage operations fail (upload, download, archive)."""
     pass
 
