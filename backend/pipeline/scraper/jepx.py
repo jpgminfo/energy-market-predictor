@@ -1,12 +1,31 @@
-import os
-import csv
-import time
-from datetime import datetime
-from playwright.sync_api import sync_playwright
-from db.connection import get_connection
+# scraper/jepx.py
+#
+# JEPX spot market scraper.
+# Responsibility: JEPX-specific fetch, parse, and insert logic only.
+# All shared logic delegated to scraper/base/.
 
-DOWNLOAD_DIR = os.getenv("JEPX_DOWNLOAD_DIR", "C:\\Users\\kotas\\Downloads")
+from datetime import datetime, timedelta
+from scraper.base import setup_logger, timestamp, FetchError, ParseError
+from scraper.base import fetcher
+from scraper.base import storage as st
+from scraper.base.parser import (
+    read_csv,
+    find_header_row,
+    detect_interval,
+    time_to_slot,
+    parse_date,
+    to_float,
+)
+from scraper.base.inserter import upsert
 
+logger = setup_logger(__name__)
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+JEPX_URL = "https://www.jepx.jp/electricpower/market-data/spot/"
+
+# JEPX CSV column index → area_code mapping
+# Columns 6-14 in CSV correspond to area prices 01-09
 AREA_COLUMNS = {
     6:  "HOKKAIDO",
     7:  "TOHOKU",
@@ -19,173 +38,186 @@ AREA_COLUMNS = {
     14: "KYUSHU",
 }
 
-def fiscal_year():
-    year = int(time.strftime("%Y"))
-    month = int(time.strftime("%m"))
-    return year - 1 if month <= 3 else year
+# DB columns for jepx_spot_summary
+SUMMARY_COLUMNS = [
+    "target_date", "trading_slot", "interval_minutes",
+    "system_price",
+    "sell_bid_amount", "buy_bid_amount", "total_contract_amount",
+    "sell_block_bid_amount", "sell_block_contract_amount",
+    "buy_block_bid_amount", "buy_block_contract_amount",
+]
 
-def timestamp():
-    return time.strftime("%Y%m%d%H%M%S")
+# DB columns for jepx_spot_prices
+PRICES_COLUMNS = [
+    "target_date", "trading_slot", "area_code",
+    "interval_minutes", "area_price",
+]
 
-def log_status(status, message):
-    print(f"[{timestamp()}] {status}: {message}")
+# ── Fiscal year helpers ───────────────────────────────────────────────────────
 
-def download_csv():
-    url = "https://www.jepx.jp/electricpower/market-data/spot/"
-    
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=False,  # set True once confirmed working
-            downloads_path=DOWNLOAD_DIR
-        )
-        context = browser.new_context(accept_downloads=True)
-        page = context.new_page()
+def fiscal_year() -> int:
+    now = datetime.now()
+    return now.year - 1 if now.month <= 3 else now.year
 
-        try:
-            page.goto(url, wait_until="networkidle")
 
-            # Step 1 — click the initial download button to open modal
-            page.locator("section:nth-of-type(6) ul li:nth-child(3) button").click()
+def storage_path(fy: int) -> str:
+    return f"jepx/spot_summary_{fy}.csv"
 
-            # Step 2 — wait for modal to appear
-            page.wait_for_selector("#dl-select--spot_summary", state="visible")
 
-            # Step 3 — select fiscal year
-            page.locator("#dl-select--spot_summary").select_option(f"spot_summary_{fiscal_year()}.csv")
+# ── Fetch ─────────────────────────────────────────────────────────────────────
 
-            # Step 4 — click download button and capture download
-            with page.expect_download(timeout=30000) as download_info:
-                page.locator("#modal-box--spot_summary button[type='submit']").click()
+def _interact(page) -> None:
+    """Playwright interaction to trigger JEPX CSV download."""
+    fy = fiscal_year()
 
-            download = download_info.value
-            save_path = os.path.join(DOWNLOAD_DIR, f"spot_summary_{fiscal_year()}.csv")
-            download.save_as(save_path)
-            log_status("SUCCESS", f"Downloaded to {save_path}")
-            return True
+    # Open download modal
+    page.locator(
+        "section:nth-of-type(6) ul li:nth-child(3) button"
+    ).click()
 
-        except Exception as e:
-            log_status("ERROR", f"Download failed: {e}")
-            return False
-        finally:
-            browser.close()
+    # Wait for modal and select fiscal year
+    page.wait_for_selector("#dl-select--spot_summary", state="visible")
+    page.locator("#dl-select--spot_summary").select_option(
+        f"spot_summary_{fy}.csv"
+    )
 
-def parse_csv(csv_file_path):
-    summaries = []
-    prices = []
+    # Click submit button (not the close button)
+    page.locator("#modal-box--spot_summary button[type='submit']").click()
 
-    with open(csv_file_path, 'r', encoding='shift-jis') as f:
-        reader = csv.reader(f)
-        for _ in range(3):
-            next(reader)
-        for row in reader:
-            if not row or not row[0]:
-                continue
 
-            target_date = datetime.strptime(row[0], "%Y/%m/%d").date()
-            trading_slot = int(row[1])
+def fetch(fy: int | None = None) -> str:
+    """
+    Download JEPX spot summary CSV via browser and stage in Supabase Storage.
+    Returns storage_path on success.
+    Raises FetchError on failure.
+    """
+    fy = fy or fiscal_year()
+    path = storage_path(fy)
+    logger.info(f"Fetching JEPX spot summary FY{fy}")
+    return fetcher.fetch_browser(
+        url=JEPX_URL,
+        storage_path=path,
+        interact=_interact,
+    )
 
-            summary = {
-                "target_date":                  target_date,
-                "trading_slot":                 trading_slot,
-                "system_price":                 float(row[5]) if row[5] else None,
-                "sell_bid_amount":              float(row[2]) if row[2] else None,
-                "buy_bid_amount":               float(row[3]) if row[3] else None,
-                "total_contract_amount":        float(row[4]) if row[4] else None,
-                "sell_block_bid_amount":        float(row[15]) if row[15] else None,
-                "sell_block_contract_amount":   float(row[16]) if row[16] else None,
-                "buy_block_bid_amount":         float(row[17]) if row[17] else None,
-                "buy_block_contract_amount":    float(row[18]) if row[18] else None,
-            }
-            summaries.append(summary)
 
-            for col_idx, area_code in AREA_COLUMNS.items():
-                price = {
-                    "target_date":  target_date,
-                    "trading_slot": trading_slot,
-                    "area_code":    area_code,
-                    "area_price":   float(row[col_idx]) if row[col_idx] else None,
-                }
-                prices.append(price)
+# ── Parse ─────────────────────────────────────────────────────────────────────
 
-    log_status("INFO", f"Parsed {len(summaries)} slots, {len(prices)} area price rows")
+def parse(fy: int | None = None) -> tuple[list[dict], list[dict]]:
+    """
+    Download and parse JEPX CSV from Supabase Storage.
+    Returns (summaries, prices) — two lists of dicts ready for DB insert.
+    Raises ParseError if CSV cannot be parsed.
+    """
+    fy = fy or fiscal_year()
+    path = storage_path(fy)
+
+    text = st.download_text(path, encoding="shift_jis")
+    rows = read_csv(text)
+
+    # JEPX CSV has 3 header rows — skip to data
+    # Row 0: blank/title
+    # Row 1: column names in Japanese
+    # Row 2: units
+    # Row 3+: data
+    data_rows = [r for r in rows[3:] if r and r[0].strip()]
+
+    if not data_rows:
+        raise ParseError(f"No data rows found in JEPX CSV FY{fy}")
+
+    interval = detect_interval(data_rows)
+    logger.info(f"Detected {interval}min interval for JEPX FY{fy}")
+
+    summaries: list[dict] = []
+    prices: list[dict] = []
+
+    for row in data_rows:
+        if len(row) < 15:
+            continue
+
+        target_date = parse_date(row[0])
+        if not target_date:
+            continue
+
+        slot = time_to_slot(row[1], interval)
+        if not slot:
+            continue
+
+        # Market-wide summary row
+        summaries.append({
+            "target_date":              target_date,
+            "trading_slot":             slot,
+            "interval_minutes":         interval,
+            "system_price":             to_float(row[5]),
+            "sell_bid_amount":          to_float(row[2]),
+            "buy_bid_amount":           to_float(row[3]),
+            "total_contract_amount":    to_float(row[4]),
+            "sell_block_bid_amount":    to_float(row[15]) if len(row) > 15 else None,
+            "sell_block_contract_amount": to_float(row[16]) if len(row) > 16 else None,
+            "buy_block_bid_amount":     to_float(row[17]) if len(row) > 17 else None,
+            "buy_block_contract_amount": to_float(row[18]) if len(row) > 18 else None,
+        })
+
+        # One price row per area
+        for col_idx, area_code in AREA_COLUMNS.items():
+            prices.append({
+                "target_date":      target_date,
+                "trading_slot":     slot,
+                "area_code":        area_code,
+                "interval_minutes": interval,
+                "area_price":       to_float(row[col_idx]),
+            })
+
+    logger.info(
+        f"Parsed JEPX FY{fy}: {len(summaries)} slots, {len(prices)} area price rows"
+    )
     return summaries, prices
 
-def insert_summaries(conn, summaries):
-    cursor = conn.cursor()
-    query = """
-        INSERT INTO jepx_spot_summary (
-            target_date, trading_slot, system_price,
-            sell_bid_amount, buy_bid_amount, total_contract_amount,
-            sell_block_bid_amount, sell_block_contract_amount,
-            buy_block_bid_amount, buy_block_contract_amount
-        ) VALUES (
-            %(target_date)s, %(trading_slot)s, %(system_price)s,
-            %(sell_bid_amount)s, %(buy_bid_amount)s, %(total_contract_amount)s,
-            %(sell_block_bid_amount)s, %(sell_block_contract_amount)s,
-            %(buy_block_bid_amount)s, %(buy_block_contract_amount)s
-        )
-        ON CONFLICT (target_date, trading_slot) DO UPDATE SET
-            system_price               = EXCLUDED.system_price,
-            sell_bid_amount            = EXCLUDED.sell_bid_amount,
-            buy_bid_amount             = EXCLUDED.buy_bid_amount,
-            total_contract_amount      = EXCLUDED.total_contract_amount,
-            sell_block_bid_amount      = EXCLUDED.sell_block_bid_amount,
-            sell_block_contract_amount = EXCLUDED.sell_block_contract_amount,
-            buy_block_bid_amount       = EXCLUDED.buy_block_bid_amount,
-            buy_block_contract_amount  = EXCLUDED.buy_block_contract_amount
+
+# ── Insert ────────────────────────────────────────────────────────────────────
+
+def insert(summaries: list[dict], prices: list[dict]) -> None:
     """
-    cursor.executemany(query, summaries)
-    conn.commit()
-    log_status("INFO", f"Inserted/updated {len(summaries)} summary rows")
-    cursor.close()
-
-def insert_prices(conn, prices):
-    cursor = conn.cursor()
-    query = """
-        INSERT INTO jepx_spot_prices (
-            target_date, trading_slot, area_code, area_price
-        ) VALUES (
-            %(target_date)s, %(trading_slot)s, %(area_code)s, %(area_price)s
-        )
-        ON CONFLICT (target_date, trading_slot, area_code) DO UPDATE SET
-            area_price = EXCLUDED.area_price
+    Insert parsed JEPX data into PostgreSQL.
+    Uses generic upsert from base/inserter.py.
     """
-    cursor.executemany(query, prices)
-    conn.commit()
-    log_status("INFO", f"Inserted/updated {len(prices)} area price rows")
-    cursor.close()
+    upsert(
+        rows=summaries,
+        table="jepx_spot_summary",
+        columns=SUMMARY_COLUMNS,
+        conflict_columns=["target_date", "trading_slot"],
+    )
+    upsert(
+        rows=prices,
+        table="jepx_spot_prices",
+        columns=PRICES_COLUMNS,
+        conflict_columns=["target_date", "trading_slot", "area_code"],
+    )
 
-def archive_csv(csv_file_path):
-    new_name = f"{os.path.splitext(os.path.basename(csv_file_path))[0]}_{timestamp()}.csv"
-    archive_dir = os.path.join(os.path.dirname(csv_file_path), "archive")
-    os.makedirs(archive_dir, exist_ok=True)
-    archived_path = os.path.join(archive_dir, new_name)
-    os.rename(csv_file_path, archived_path)
-    log_status("INFO", f"Archived to {archived_path}")
 
-def run(download=True):
-    csv_path = os.path.join(DOWNLOAD_DIR, f"spot_summary_{fiscal_year()}.csv")
+# ── Main entry point ──────────────────────────────────────────────────────────
+
+def run(fy: int | None = None, download: bool = True) -> None:
+    """
+    Full pipeline: fetch → parse → insert → archive.
+
+    fy:       fiscal year to process (defaults to current)
+    download: if False, use existing file in storage (skip fetch)
+    """
+    fy = fy or fiscal_year()
+    path = storage_path(fy)
+
+    logger.info(f"JEPX scraper starting — FY{fy}")
 
     if download:
-        success = download_csv()
-        if not success:
-            return
+        fetch(fy)
 
-    if not os.path.exists(csv_path):
-        log_status("ERROR", f"CSV not found: {csv_path}")
-        return
+    summaries, prices = parse(fy)
+    insert(summaries, prices)
+    st.archive(path)
 
-    summaries, prices = parse_csv(csv_path)
+    logger.info(f"JEPX scraper completed — FY{fy}")
 
-    conn = get_connection()
-    try:
-        insert_summaries(conn, summaries)
-        insert_prices(conn, prices)
-    finally:
-        conn.close()
-
-    archive_csv(csv_path)
-    log_status("SUCCESS", "JEPX scraper completed")
 
 if __name__ == "__main__":
-    run()
+    run(download=True)
