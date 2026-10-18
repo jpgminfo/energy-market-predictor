@@ -3,14 +3,11 @@
 # Responsibility: insert or update rows into PostgreSQL.
 # Generic upsert — scrapers pass table name, columns, conflict keys.
 # No scraper-specific SQL lives here.
-#
-# SOLID: open/closed — new scrapers extend by calling upsert(), not by modifying this file.
-# KISS: one function, one responsibility.
-# DRY: replaces repeated INSERT ... ON CONFLICT blocks in each scraper.
 
-from scraper.base import log
+from pipeline import setup_logger
 from db.connection import get_connection
 
+logger = setup_logger(__name__)
 
 def upsert(
     rows: list[dict],
@@ -41,7 +38,7 @@ def upsert(
         )
     """
     if not rows:
-        log("WARN", f"upsert({table}): no rows to insert")
+        logger.warning(f"upsert({table}): no rows to insert")
         return 0
 
     update_cols = update_columns or [c for c in columns if c not in conflict_columns]
@@ -66,7 +63,7 @@ def upsert(
         cursor = conn.cursor()
         cursor.executemany(query, rows)
         conn.commit()
-        log("INFO", f"upsert({table}): {len(rows)} rows inserted/updated")
+        logger.info(f"upsert({table}): {len(rows)} rows inserted/updated")
         cursor.close()
     finally:
         if close_after:

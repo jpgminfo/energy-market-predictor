@@ -3,14 +3,12 @@
 # Responsibility: parse raw text into structured rows.
 # No I/O, no DB, no storage — pure transformation.
 # All functions are stateless and independently testable.
-#
-# SOLID: single responsibility (parsing only).
-# KISS: each function does one thing.
-# DRY: shared by all scrapers that read CSV.
 
 import csv
 from datetime import datetime
-from scraper.base import log
+from pipeline import setup_logger
+
+logger = setup_logger(__name__)
 
 
 def read_csv(text: str) -> list[list[str]]:
@@ -35,24 +33,6 @@ def find_header_row(
     return None
 
 
-def detect_interval(data_rows: list[list[str]], time_col: int = 1) -> int:
-    """
-    Detect trading interval (minutes) from time difference between first two rows.
-    Returns 15, 30, or 60. Falls back to 30 if detection fails.
-    """
-    if len(data_rows) < 2:
-        return 30
-    try:
-        t1 = _parse_time(data_rows[0][time_col])
-        t2 = _parse_time(data_rows[1][time_col])
-        if t1 is None or t2 is None:
-            return 30
-        diff = int(abs((t2 - t1).seconds) / 60)
-        return diff if diff in (15, 30, 60) else 30
-    except (IndexError, ValueError):
-        return 30
-
-
 def _parse_time(time_str: str) -> datetime | None:
     """Parse HH:MM string, treating 24:00 as 00:00."""
     s = time_str.strip()
@@ -64,17 +44,36 @@ def _parse_time(time_str: str) -> datetime | None:
         return None
 
 
+def detect_interval(data_rows: list[list[str]], time_col: int = 1) -> int:
+    """
+    Detect trading interval (minutes) from time difference between first two rows.
+    Returns 15, 30, or 60. Falls back to 30 if detection fails.
+    """
+    if len(data_rows) < 2:
+        logger.warning("Cannot detect interval — fewer than 2 data rows, defaulting to 30min")
+        return 30
+    try:
+        t1 = _parse_time(data_rows[0][time_col])
+        t2 = _parse_time(data_rows[1][time_col])
+        if t1 is None or t2 is None:
+            logger.warning("Cannot detect interval — fewer than 2 data rows, defaulting to 30min")
+            return 30
+        diff = int(abs((t2 - t1).seconds) / 60)
+        return diff if diff in (15, 30, 60) else 30
+    except (IndexError, ValueError):
+        return 30
+
+
 def time_to_slot(time_str: str, interval_minutes: int = 30) -> int | None:
     """
     Convert HH:MM to trading slot number (1-based).
     slot 1 = 00:00, slot 2 = 00:30 (for 30min), etc.
     Returns None if parsing fails.
     """
-    s = time_str.strip()
-    if s == "24:00":
-        s = "00:00"
     try:
-        dt = datetime.strptime(s, "%H:%M")
+        dt = _parse_time(time_str)
+        if dt is None:
+            return None
         total_minutes = dt.hour * 60 + dt.minute
         return total_minutes // interval_minutes + 1
     except ValueError:
