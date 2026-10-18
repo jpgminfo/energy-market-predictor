@@ -3,7 +3,7 @@ import glob
 from scraper.jepx import parse_csv, insert_summaries, insert_prices
 from db.connection import get_connection
 
-DOWNLOAD_DIR = os.getenv("JEPX_DOWNLOAD_DIR", "C:\\Users\\kotas\\Downloads")
+DOWNLOAD_DIR = os.environ["PIPELINE_DOWNLOAD_DIR"]
 
 def run():
     # Find all spot_summary CSV files
