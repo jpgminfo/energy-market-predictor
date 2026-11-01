@@ -1,5 +1,5 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from scraper.jepx import run as run_jepx
+from pipeline.scraper.jepx import run as run_jepx
 
 scheduler = AsyncIOScheduler(timezone="Asia/Tokyo")
 

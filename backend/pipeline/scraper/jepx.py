@@ -5,10 +5,10 @@
 # All shared logic delegated to scraper/base/.
 
 from datetime import datetime, timedelta
-from scraper.base import setup_logger, timestamp, FetchError, ParseError
-from scraper.base import fetcher
-from scraper.base import storage as st
-from scraper.base.parser import (
+from pipeline import setup_logger, timestamp, FetchError, ParseError
+from pipeline.scraper.base import fetcher
+from pipeline import storage as st
+from pipeline.scraper.base.parser import (
     read_csv,
     find_header_row,
     detect_interval,
@@ -16,7 +16,7 @@ from scraper.base.parser import (
     parse_date,
     to_float,
 )
-from scraper.base.inserter import upsert
+from pipeline.scraper.base.inserter import upsert
 
 logger = setup_logger(__name__)
 
