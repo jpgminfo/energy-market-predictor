@@ -1,0 +1,15 @@
+[2026-11-03 10:30:00] [INFO] [pipeline.scraper.jepx]: JEPX scraper starting — FY2026
+[2026-11-03 10:30:00] [INFO] [pipeline.scraper.jepx]: Fetching JEPX spot summary FY2026
+[2026-11-03 10:30:00] [INFO] [pipeline.scraper.base.fetcher]: Browser fetch: https://www.jepx.jp/electricpower/market-data/spot/
+[2026-11-03 22:08:27] [INFO] [pipeline.storage]: Uploaded to storage: jepx/spot_summary_2016.csv (1,898,748 bytes)
+[2026-11-03 23:04:52] [INFO] [__main__]: Found 1 files to import:
+[2026-11-03 23:04:52] [INFO] [__main__]: Processing spot_summary_2016.csv...
+[2026-11-03 23:04:55] [INFO] [pipeline.storage]: Downloaded from storage: jepx/spot_summary_2016.csv (1,898,748 bytes)
+[2026-11-03 23:04:55] [WARNING] [pipeline.scraper.base.parser]: Cannot detect interval — fewer than 2 data rows, defaulting to 30min
+[2026-11-03 23:04:55] [INFO] [pipeline.scraper.jepx]: Detected 30min interval for JEPX FY2016
+[2026-11-03 23:04:55] [INFO] [pipeline.scraper.jepx]: Parsed JEPX FY2016: 0 slots, 0 area price rows
+[2026-11-03 23:04:55] [WARNING] [pipeline.scraper.base.inserter]: upsert(jepx_spot_summary): no rows to insert
+[2026-11-03 23:04:55] [WARNING] [pipeline.scraper.base.inserter]: upsert(jepx_spot_prices): no rows to insert
+[2026-11-03 23:04:55] [INFO] [__main__]:   ✓ 0 slots, 0 price rows
+[2026-11-03 23:04:55] [INFO] [__main__]: 
+Historical import completed.

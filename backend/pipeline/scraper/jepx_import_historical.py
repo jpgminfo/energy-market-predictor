@@ -1,7 +1,9 @@
 import os
 import glob
-from scraper.jepx import parse_csv, insert_summaries, insert_prices
-from db.connection import get_connection
+from pipeline.scraper.jepx import parse, insert
+from pipeline import setup_logger
+
+logger = setup_logger(__name__)
 
 DOWNLOAD_DIR = os.environ["PIPELINE_DOWNLOAD_DIR"]
 
@@ -11,29 +13,28 @@ def run():
     files = sorted(glob.glob(pattern))
 
     if not files:
-        print(f"No CSV files found in {DOWNLOAD_DIR}")
+        logger.info(f"No CSV files found in {DOWNLOAD_DIR}")
         return
 
-    print(f"Found {len(files)} files to import:")
-    for f in files:
-        print(f"  {os.path.basename(f)}")
+    logger.info(f"Found {len(files)} files to import:")
+    for csv_path in files:
+        filename = os.path.basename(csv_path)
+        logger.info(f"Processing {filename}...")
+        try:
+            import re
+            match = re.search(r"spot_summary_(\d{4})\.csv", filename)
+            if match:
+                fy = int(match.group(1))
+                summaries, prices = parse(fy)
+                insert(summaries, prices)
+                logger.info(f"  ✓ {len(summaries)} slots, {len(prices)} price rows")
+            else:
+                logger.error(f"  ✗ Could not extract fiscal year from filename: {filename}")
+        except Exception as e:
+            logger.error(f"  ✗ Failed: {e}")
+            continue
 
-    conn = get_connection()
-    try:
-        for csv_path in files:
-            print(f"\nProcessing {os.path.basename(csv_path)}...")
-            try:
-                summaries, prices = parse_csv(csv_path)
-                insert_summaries(conn, summaries)
-                insert_prices(conn, prices)
-                print(f"  ✓ {len(summaries)} slots, {len(prices)} price rows")
-            except Exception as e:
-                print(f"  ✗ Failed: {e}")
-                continue
-    finally:
-        conn.close()
-
-    print("\nHistorical import completed.")
+    logger.info("\nHistorical import completed.")
 
 if __name__ == "__main__":
     run()
