@@ -115,12 +115,9 @@ def parse(fy: int | None = None) -> tuple[list[dict], list[dict]]:
     text = st.download_text(path, encoding="shift_jis")
     rows = read_csv(text)
 
-    # JEPX CSV has 3 header rows — skip to data
+    # JEPX CSV has 1 header row — skip to data
     # Row 0: blank/title
-    # Row 1: column names in Japanese
-    # Row 2: units
-    # Row 3+: data
-    data_rows = [r for r in rows[3:] if r and r[0].strip()]
+    data_rows = [r for r in rows[1:] if r and r[0].strip()]
 
     if not data_rows:
         raise ParseError(f"No data rows found in JEPX CSV FY{fy}")
@@ -139,8 +136,10 @@ def parse(fy: int | None = None) -> tuple[list[dict], list[dict]]:
         if not target_date:
             continue
 
-        slot = time_to_slot(row[1], interval)
-        if not slot:
+        try:
+            slot = int(row[1])
+        except ValueError as e:
+            logger.warning(f"Invalid time format in row {row}: {e}")
             continue
 
         # Market-wide summary row

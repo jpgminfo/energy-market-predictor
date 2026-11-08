@@ -3,7 +3,7 @@
 # Responsibility: insert or update rows into PostgreSQL.
 # Generic upsert — scrapers pass table name, columns, conflict keys.
 # No scraper-specific SQL lives here.
-
+from psycopg2.extras import execute_values
 from pipeline import setup_logger
 from db.connection import get_connection
 
@@ -16,6 +16,7 @@ def upsert(
     conflict_columns: list[str],
     update_columns: list[str] | None = None,
     conn=None,
+    page_size=1000
 ) -> int:
     """
     Generic upsert for any scraper table.
@@ -48,9 +49,14 @@ def upsert(
     conflict_str = ", ".join(conflict_columns)
     update_str   = ", ".join(f"{c} = EXCLUDED.{c}" for c in update_cols)
 
+    deduped = {tuple(r[c] for c in conflict_columns): r for r in rows}
+    if len(deduped) != len(rows):
+        logger.info(f"upsert({table}): deduplicated {len(rows)} rows to {len(deduped)} unique rows")
+    values = [tuple(r[c] for c in columns) for r in deduped.values()]
+
     query = f"""
         INSERT INTO {table} ({col_str})
-        VALUES ({placeholder})
+        VALUES %s
         ON CONFLICT ({conflict_str}) DO UPDATE SET
             {update_str}
     """
@@ -61,7 +67,7 @@ def upsert(
 
     try:
         cursor = conn.cursor()
-        cursor.executemany(query, rows)
+        execute_values(cursor, query, values, page_size=page_size)
         conn.commit()
         logger.info(f"upsert({table}): {len(rows)} rows inserted/updated")
         cursor.close()
