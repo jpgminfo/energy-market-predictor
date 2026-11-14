@@ -56,7 +56,7 @@ def detect_interval(data_rows: list[list[str]], time_col: int = 1) -> int:
         t1 = _parse_time(data_rows[0][time_col])
         t2 = _parse_time(data_rows[1][time_col])
         if t1 is None or t2 is None:
-            logger.warning("Cannot detect interval — fewer than 2 data rows, defaulting to 30min")
+            logger.warning("Cannot detect interval — time column is not HH:MM, defaulting to 30min")
             return 30
         diff = int(abs((t2 - t1).seconds) / 60)
         return diff if diff in (15, 30, 60) else 30
