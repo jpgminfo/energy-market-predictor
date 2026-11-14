@@ -13,8 +13,10 @@ Usage:
 import argparse
 import time
 from datetime import datetime, date
-from scraper.tso_supply import run, log_status, TSO_AREA_MAP
+from pipeline.scraper.tso_supply import run, TSO_AREA_MAP
+from pipeline import setup_logger
 
+logger = setup_logger(__name__)
 
 def months_in_range(start_year: int, start_month: int,
                     end_year: int, end_month: int):
@@ -51,14 +53,14 @@ def run_historical(start_year: int, start_month: int,
     months = list(months_in_range(start_year, start_month, end_year, end_month))
     total = len(months)
 
-    log_status("INFO", f"Historical import: {total} months × {len(area_codes)} TSOs")
-    log_status("INFO", f"Range: {start_year}-{start_month:02d} to {end_year}-{end_month:02d}")
-    log_status("INFO", f"Areas: {[TSO_AREA_MAP[c] for c in area_codes]}")
+    logger.info(f"Historical import: {total} months × {len(area_codes)} TSOs")
+    logger.info(f"Range: {start_year}-{start_month:02d} to {end_year}-{end_month:02d}")
+    logger.info(f"Areas: {[TSO_AREA_MAP[c] for c in area_codes]}")
 
     failed = []
 
     for i, (year, month) in enumerate(months, 1):
-        log_status("INFO", f"[{i}/{total}] Processing {year}-{month:02d}...")
+        logger.info(f"[{i}/{total}] Processing {year}-{month:02d}...")
         try:
             run(
                 year=year,
@@ -67,17 +69,17 @@ def run_historical(start_year: int, start_month: int,
                 download=download,
             )
         except Exception as e:
-            log_status("ERROR", f"Failed {year}-{month:02d}: {e}")
+            logger.error(f"Failed {year}-{month:02d}: {e}")
             failed.append((year, month))
 
         # Be polite to TSO servers — wait between months
         if i < total:
             time.sleep(delay_seconds)
 
-    log_status("SUCCESS", f"Historical import complete. Failed: {len(failed)} months")
+    logger.info(f"Historical import complete. Failed: {len(failed)} months")
     if failed:
         for y, m in failed:
-            log_status("WARN", f"  Failed: {y}-{m:02d}")
+            logger.warning(f"  Failed: {y}-{m:02d}")
 
 
 if __name__ == "__main__":

@@ -22,5 +22,17 @@ AND area_code = 'HOKKAIDO'
 GROUP BY target_date
 ORDER BY target_date;
 
-select * from jepx_spot_summary;
-select * from jepx_spot_prices where target_date = '2026-09-24';
+SELECT target_date, buy_block_bid_amount, buy_block_contract_amount
+FROM jepx_spot_summary_fy2017
+WHERE buy_block_bid_amount IS NOT NULL
+ORDER BY target_date
+LIMIT 1;
+
+SELECT 'prices' AS t, COUNT(*) FROM jepx_spot_prices
+ WHERE target_date >= '2016-04-01' AND target_date < '2017-04-01'
+UNION ALL
+SELECT 'summary', COUNT(*) FROM jepx_spot_summary
+ WHERE target_date >= '2016-04-01' AND target_date < '2017-04-01';
+
+
+SELECT MAX(target_date) FROM jepx_spot_summary;
