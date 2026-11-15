@@ -36,3 +36,4 @@ SELECT 'summary', COUNT(*) FROM jepx_spot_summary
 
 
 SELECT MAX(target_date) FROM jepx_spot_summary;
+select min(target_date) from tso_area_supply_demand_fy2026;
