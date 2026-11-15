@@ -21,10 +21,9 @@ def run_historical(start, end, area_codes, download=True, delay_seconds=5):
     """
     months = list(months_in_range(start, end))
 
-    logger.info(
-        f"Historical import: {len(months)} months × {len(area_codes)} TSOs"
-        f"Range: {start[0]}-{start[1]:02d} to {end[0]}-{end[1]:02d})"
-        f"Areas: {[TSO_AREA_MAP[c] for c in area_codes]}")
+    logger.info(f"Historical import: {len(months)} months × {len(area_codes)} TSOs")
+    logger.info(f"Range: {start[0]}-{start[1]:02d} to {end[0]}-{end[1]:02d}")
+    logger.info(f"Areas: {[TSO_AREA_MAP[c] for c in area_codes]}")
 
     failed: list[str] = []
 

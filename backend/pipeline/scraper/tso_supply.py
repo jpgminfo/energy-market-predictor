@@ -5,8 +5,9 @@
 # All shared logic delegated to scraper/base/.
 
 from datetime import datetime, timedelta
-from pipeline import setup_logger, FetchError, ParseError
+from pipeline import setup_logger, PipelineError, FetchError, ParseError
 from pipeline.scraper.base import fetcher
+from pipeline.scraper.base.periods import previous_month, current_month
 from pipeline import storage as st
 from pipeline.scraper.base.parser import (
     read_csv,
@@ -21,7 +22,6 @@ from pipeline.scraper.base.inserter import upsert
 
 logger = setup_logger(__name__)
 
-# ── Constants ─────────────────────────────────────────────────────────────────
 
 # TSO file suffix → areas table area_code
 TSO_AREA_MAP = {
@@ -115,13 +115,6 @@ TOHOKU_URL   = lambda year, m0: f"https://setsuden.nw.tohoku-epco.co.jp/get_real
 HOKURIKU_URL = "https://www.rikuden.co.jp/nw/denki-yoho/results_jyukyu.html"
 CHUGOKU_URL  = "https://www.energia.co.jp/nw/jukyuu/eria_jukyu.html"
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _prev_year_month() -> tuple[int, int]:
-    today = datetime.today()
-    target = today.replace(day=1) - timedelta(days=1)
-    return target.year, target.month
-
 
 def _ym_str(year: int, month: int) -> str:
     return f"{year}{month:02d}"
@@ -131,25 +124,26 @@ def _storage_path(area_code: str, ym: str) -> str:
     return f"tso/eria_jukyu_{ym}_{area_code}.csv"
 
 
-# ── Fetch ─────────────────────────────────────────────────────────────────────
-
 def _interact_hokuriku(year: int, month: int):
     """Return Playwright interact callable for Hokuriku (05)."""
+    is_current = (year, month) == current_month()
+
     def interact(page):
-        page.locator("[name='year']").select_option(str(year))
-        page.locator("[name='month']").select_option(str(month))
-        page.locator(
-            "/html/body/div[3]/div[3]/div/div/div/div[2]/div/form/ul/li[1]/a"
-        ).click()
+        if is_current:
+            page.get_by_role("link", name="当月の需給実績ダウンロード").click()
+        else:
+            page.locator("#year").select_option(str(year))
+            page.locator("#month").select_option(str(month))
+            page.get_by_role("link", name="過去実績ダウンロード").click()
     return interact
 
 
 def _interact_chugoku(year: int, month: int):
     """Return Playwright interact callable for Chugoku (07)."""
     def interact(page):
-        page.locator("[name='year']").select_option(str(year))
-        page.locator("[name='month']").select_option(str(month))
-        page.locator("[id*='download']").click()
+        page.locator("#year1").select_option(str(year))
+        page.locator("#month1").select_option(str(month))
+        page.get_by_role("button", name="download1").click()
     return interact
 
 
@@ -188,8 +182,6 @@ def fetch_one(area_code: str, year: int, month: int) -> str:
     else:
         raise FetchError(f"No fetch strategy for area_code: {area_code}")
 
-
-# ── Parse ─────────────────────────────────────────────────────────────────────
 
 def _compute_thermal_total(vals: dict) -> dict:
     """
@@ -279,8 +271,6 @@ def parse_one(area_code: str, year: int, month: int) -> list[dict]:
     return rows
 
 
-# ── Insert ────────────────────────────────────────────────────────────────────
-
 def insert(rows: list[dict]) -> None:
     """Insert parsed TSO supply/demand rows into PostgreSQL."""
     upsert(
@@ -296,8 +286,6 @@ def insert(rows: list[dict]) -> None:
     )
 
 
-# ── Main entry point ──────────────────────────────────────────────────────────
-
 def run(
     year: int | None = None,
     month: int | None = None,
@@ -312,12 +300,13 @@ def run(
     download:     if False, use existing files in storage (skip fetch)
     """
     if year is None or month is None:
-        year, month = _prev_year_month()
+        year, month = previous_month()
 
     ym = _ym_str(year, month)
     codes = area_codes or list(TSO_AREA_MAP.keys())
 
     logger.info(f"TSO scraper starting — {ym}, areas: {codes}")
+    failed: list[str] = []
 
     for area_code in codes:
         area_name = TSO_AREA_MAP[area_code]
@@ -332,13 +321,14 @@ def run(
             insert(rows)
             st.archive(path)
 
-        except (FetchError, ParseError) as e:
+        except (PipelineError) as e:
             # Log and continue — don't let one TSO failure stop others
             logger.error(f"Failed {area_code} ({area_name}): {e}")
+            failed.append(area_code)
             continue
 
     logger.info(f"TSO scraper completed — {ym}")
-
+    return failed  # list of area_codes that failed
 
 if __name__ == "__main__":
     run(download=True)

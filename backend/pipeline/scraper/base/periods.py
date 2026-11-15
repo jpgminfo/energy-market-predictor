@@ -20,6 +20,13 @@ def previous_month(today: date | None = None) -> YearMonth:
     return last.year, last.month
 
 
+def current_month(today: date | None = None) -> YearMonth:
+    """Return (year, month) of the current month."""
+    if today is None:
+        today = date.today()
+    return today.year, today.month
+
+
 def months_in_range(start: YearMonth, end: YearMonth) -> Iterator[YearMonth]:
     """Generate (year, month) tuples from start to end inclusive."""
     y, m = start

@@ -172,7 +172,7 @@ def fetch_browser(
                 download = dl_info.value
             except PlaywrightTimeoutError as e:
                 raise FetchError(
-                    f"Download timeout after {timeout}ms on '{url}'"
+                    f"Timeout during interaction or download on '{url}': {e}"
                 ) from e
             except Exception as e:
                 raise FetchError(

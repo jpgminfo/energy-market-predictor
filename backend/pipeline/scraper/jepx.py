@@ -1,8 +1,4 @@
-# scraper/jepx.py
-#
-# JEPX spot market scraper.
 # Responsibility: JEPX-specific fetch, parse, and insert logic only.
-# All shared logic delegated to scraper/base/.
 
 from datetime import datetime, timedelta
 from pipeline import setup_logger, timestamp, FetchError, ParseError
@@ -90,7 +86,6 @@ def fetch(fy: int | None = None) -> str:
         storage_path=path,
         interact=_interact,
     )
-
 
 
 def parse(fy: int | None = None) -> tuple[list[dict], list[dict]]:
@@ -181,8 +176,6 @@ def insert(summaries: list[dict], prices: list[dict]) -> None:
         conflict_columns=["target_date", "trading_slot", "area_code"],
     )
 
-
-# ── Main entry point ──────────────────────────────────────────────────────────
 
 def run(fy: int | None = None, download: bool = True) -> None:
     """
