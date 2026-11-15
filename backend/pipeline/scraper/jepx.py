@@ -6,7 +6,7 @@
 
 from datetime import datetime, timedelta
 from pipeline import setup_logger, timestamp, FetchError, ParseError
-from pipeline.scraper.base import fetcher
+from pipeline.scraper.base import fetcher, periods
 from pipeline import storage as st
 from pipeline.scraper.base.parser import (
     read_csv,
@@ -20,7 +20,6 @@ from pipeline.scraper.base.inserter import upsert
 
 logger = setup_logger(__name__)
 
-# ── Constants ─────────────────────────────────────────────────────────────────
 
 JEPX_URL = "https://www.jepx.jp/electricpower/market-data/spot/"
 
@@ -53,22 +52,14 @@ PRICES_COLUMNS = [
     "interval_minutes", "area_price",
 ]
 
-# ── Fiscal year helpers ───────────────────────────────────────────────────────
-
-def fiscal_year() -> int:
-    now = datetime.now()
-    return now.year - 1 if now.month <= 3 else now.year
-
 
 def storage_path(fy: int) -> str:
     return f"jepx/spot_summary_{fy}.csv"
 
 
-# ── Fetch ─────────────────────────────────────────────────────────────────────
-
 def _interact(page) -> None:
     """Playwright interaction to trigger JEPX CSV download."""
-    fy = fiscal_year()
+    fy = periods.fiscal_year()
 
     # Open download modal
     page.locator(
@@ -91,7 +82,7 @@ def fetch(fy: int | None = None) -> str:
     Returns storage_path on success.
     Raises FetchError on failure.
     """
-    fy = fy or fiscal_year()
+    fy = fy or periods.fiscal_year()
     path = storage_path(fy)
     logger.info(f"Fetching JEPX spot summary FY{fy}")
     return fetcher.fetch_browser(
@@ -101,7 +92,6 @@ def fetch(fy: int | None = None) -> str:
     )
 
 
-# ── Parse ─────────────────────────────────────────────────────────────────────
 
 def parse(fy: int | None = None) -> tuple[list[dict], list[dict]]:
     """
@@ -109,7 +99,7 @@ def parse(fy: int | None = None) -> tuple[list[dict], list[dict]]:
     Returns (summaries, prices) — two lists of dicts ready for DB insert.
     Raises ParseError if CSV cannot be parsed.
     """
-    fy = fy or fiscal_year()
+    fy = fy or periods.fiscal_year()
     path = storage_path(fy)
 
     text = st.download_text(path, encoding="shift_jis")
@@ -173,8 +163,6 @@ def parse(fy: int | None = None) -> tuple[list[dict], list[dict]]:
     return summaries, prices
 
 
-# ── Insert ────────────────────────────────────────────────────────────────────
-
 def insert(summaries: list[dict], prices: list[dict]) -> None:
     """
     Insert parsed JEPX data into PostgreSQL.
@@ -203,7 +191,7 @@ def run(fy: int | None = None, download: bool = True) -> None:
     fy:       fiscal year to process (defaults to current)
     download: if False, use existing file in storage (skip fetch)
     """
-    fy = fy or fiscal_year()
+    fy = fy or periods.fiscal_year()
     path = storage_path(fy)
 
     logger.info(f"JEPX scraper starting — FY{fy}")

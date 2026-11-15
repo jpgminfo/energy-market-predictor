@@ -1,9 +1,4 @@
 """
-tso_supply_import_historical.py
-
-Batch import historical TSO area supply/demand data.
-Downloads and inserts data month by month for specified year range.
-
 Usage:
     python -m scraper.tso_supply_import_historical
     python -m scraper.tso_supply_import_historical --start 2020-01 --end 2026-08
@@ -12,133 +7,62 @@ Usage:
 
 import argparse
 import time
-from datetime import datetime, date
+from pipeline.scraper.base.periods import months_in_range, parse_year_month, previous_month
 from pipeline.scraper.tso_supply import run, TSO_AREA_MAP
 from pipeline import setup_logger
 
 logger = setup_logger(__name__)
 
-def months_in_range(start_year: int, start_month: int,
-                    end_year: int, end_month: int):
-    """Generate (year, month) tuples from start to end inclusive."""
-    y, m = start_year, start_month
-    while (y, m) <= (end_year, end_month):
-        yield y, m
-        m += 1
-        if m > 12:
-            m = 1
-            y += 1
 
-
-def parse_year_month(ym_str: str):
-    """Parse YYYY-MM string to (year, month) tuple."""
-    try:
-        dt = datetime.strptime(ym_str, '%Y-%m')
-        return dt.year, dt.month
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            f"Invalid year-month format: {ym_str}. Use YYYY-MM."
-        )
-
-
-def run_historical(start_year: int, start_month: int,
-                   end_year: int, end_month: int,
-                   area_codes: list[str],
-                   download: bool = True,
-                   delay_seconds: int = 5):
+def run_historical(start, end, area_codes, download=True, delay_seconds=5):
     """
     Import historical data month by month.
     delay_seconds: wait between months to avoid overwhelming TSO servers.
     """
-    months = list(months_in_range(start_year, start_month, end_year, end_month))
-    total = len(months)
+    months = list(months_in_range(start, end))
 
-    logger.info(f"Historical import: {total} months × {len(area_codes)} TSOs")
-    logger.info(f"Range: {start_year}-{start_month:02d} to {end_year}-{end_month:02d}")
-    logger.info(f"Areas: {[TSO_AREA_MAP[c] for c in area_codes]}")
+    logger.info(
+        f"Historical import: {len(months)} months × {len(area_codes)} TSOs"
+        f"Range: {start[0]}-{start[1]:02d} to {end[0]}-{end[1]:02d})"
+        f"Areas: {[TSO_AREA_MAP[c] for c in area_codes]}")
 
-    failed = []
+    failed: list[str] = []
 
     for i, (year, month) in enumerate(months, 1):
-        logger.info(f"[{i}/{total}] Processing {year}-{month:02d}...")
+        logger.info(f"[{i}/{len(months)}] Processing {year}-{month:02d}...")
         try:
-            run(
-                year=year,
-                month=month,
-                area_codes=area_codes,
-                download=download,
-            )
+            for code in run(year=year, month=month, area_codes=area_codes, download=download):
+                failed.append(f"{year}-{month:02d} {code} ({TSO_AREA_MAP[code]})")
         except Exception as e:
             logger.error(f"Failed {year}-{month:02d}: {e}")
-            failed.append((year, month))
+            failed.append(f"{year}-{month:02d} (whole month aborted)")
 
         # Be polite to TSO servers — wait between months
-        if i < total:
+        if i < len(months):
             time.sleep(delay_seconds)
 
-    logger.info(f"Historical import complete. Failed: {len(failed)} months")
-    if failed:
-        for y, m in failed:
-            logger.warning(f"  Failed: {y}-{m:02d}")
+    logger.info(f"Historical import complete. Failed: {len(failed)}")
+    for item in failed:
+            logger.warning(f"  Failed: {item}")
 
+
+def main() -> None:
+    p = argparse.ArgumentParser(
+        description="Import historical TSO area supply/demand data")
+    p.add_argument("--start", type=parse_year_month, default="2016-04",
+                    help="Start year-month (YYYY-MM). Default: 2016-04")
+    p.add_argument("--end", type=parse_year_month, default=None,
+                    help="End year-month (YYYY-MM). Default: previous month")
+    p.add_argument("--areas", nargs="+", choices=list(TSO_AREA_MAP), default=list(TSO_AREA_MAP),
+                    metavar="CODE", help=f"TSO area codes to process. Default: all. Options: {list(TSO_AREA_MAP.keys())}")
+    p.add_argument("--no-download", action="store_true",
+                    help="Skip fetching; parse files already staged in Supabase Storage")
+    p.add_argument("--delay", type=int, default=5,
+                    help="Seconds to wait between months (default: 5)")
+    args = p.parse_args()
+
+    run_historical(args.start, args.end or previous_month(), args.areas,
+                    download=not args.no_download, delay_seconds=args.delay)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Import historical TSO area supply/demand data"
-    )
-    parser.add_argument(
-        "--start",
-        default="2016-04",
-        help="Start year-month (YYYY-MM). Default: 2016-04"
-    )
-    parser.add_argument(
-        "--end",
-        default=None,
-        help="End year-month (YYYY-MM). Default: previous month"
-    )
-    parser.add_argument(
-        "--areas",
-        nargs="+",
-        default=list(TSO_AREA_MAP.keys()),
-        help=f"TSO area codes to process. Default: all. Options: {list(TSO_AREA_MAP.keys())}"
-    )
-    parser.add_argument(
-        "--no-download",
-        action="store_true",
-        help="Skip download, use existing CSV files in DOWNLOAD_DIR"
-    )
-    parser.add_argument(
-        "--delay",
-        type=int,
-        default=5,
-        help="Seconds to wait between months (default: 5)"
-    )
-
-    args = parser.parse_args()
-
-    # Parse start
-    start_year, start_month = parse_year_month(args.start)
-
-    # Parse end — default to previous month
-    if args.end:
-        end_year, end_month = parse_year_month(args.end)
-    else:
-        today = datetime.today()
-        prev = today.replace(day=1) - __import__('datetime').timedelta(days=1)
-        end_year, end_month = prev.year, prev.month
-
-    # Validate area codes
-    invalid = [c for c in args.areas if c not in TSO_AREA_MAP]
-    if invalid:
-        print(f"Invalid area codes: {invalid}. Valid: {list(TSO_AREA_MAP.keys())}")
-        exit(1)
-
-    run_historical(
-        start_year=start_year,
-        start_month=start_month,
-        end_year=end_year,
-        end_month=end_month,
-        area_codes=args.areas,
-        download=not args.no_download,
-        delay_seconds=args.delay,
-    )
+    main()
