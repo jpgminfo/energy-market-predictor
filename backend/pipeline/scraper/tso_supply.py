@@ -105,12 +105,12 @@ HEADER_MAP = {
 DIRECT_URLS = {
     "01": lambda ym: f"https://www.hepco.co.jp/network/con_service/public_document/supply_demand_results/csv/eria_jukyu_{ym}_01.csv",
     "03": lambda ym: f"https://www.tepco.co.jp/forecast/html/images/eria_jukyu_{ym}_03.csv",
-    "04": lambda ym: f"https://powergrid.chuden.co.jp/denki_yoho_content_data/eria_jukyu_{ym}.zip",
     "06": lambda ym: f"https://www.kansai-td.co.jp/interchange/denkiyoho/area-performance/eria_jukyu_{ym}_06.csv",
     "08": lambda ym: f"https://www.yonden.co.jp/nw/supply_demand/csv/eria_jukyu_{ym}_08.csv",
     "09": lambda ym: f"https://www.kyuden.co.jp/td_area_jukyu/csv/eria_jukyu_{ym}_09.csv?17390810",
 }
 
+CHUBU_URL    = lambda ym: f"https://powergrid.chuden.co.jp/denki_yoho_content_data/eria_jukyu_{ym}.zip",
 TOHOKU_URL   = lambda year, m0: f"https://setsuden.nw.tohoku-epco.co.jp/get_realtime_jukyu.php?year={year}&month={m0}"
 HOKURIKU_URL = "https://www.rikuden.co.jp/nw/denki-yoho/results_jyukyu.html"
 CHUGOKU_URL  = "https://www.energia.co.jp/nw/jukyuu/eria_jukyu.html"
