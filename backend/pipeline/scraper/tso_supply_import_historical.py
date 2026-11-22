@@ -7,7 +7,7 @@ Usage:
 
 import argparse
 import time
-from pipeline.scraper.base.periods import months_in_range, parse_year_month, previous_month
+from pipeline.scraper.base.periods import months_in_range, parse_period, current_month, previous_month
 from pipeline.scraper.tso_supply import run, TSO_AREA_MAP
 from pipeline import setup_logger
 
@@ -48,9 +48,9 @@ def run_historical(start, end, area_codes, download=True, delay_seconds=5):
 def main() -> None:
     p = argparse.ArgumentParser(
         description="Import historical TSO area supply/demand data")
-    p.add_argument("--start", type=parse_year_month, default="2016-04",
-                    help="Start year-month (YYYY-MM). Default: 2016-04")
-    p.add_argument("--end", type=parse_year_month, default=None,
+    p.add_argument("--start", type=parse_period, default="2016-04",
+                    help="Start: YYYY-MM, or YYYY for the whole year (then omit --end). Default: 2016-04")
+    p.add_argument("--end", type=parse_period, default=None,
                     help="End year-month (YYYY-MM). Default: previous month")
     p.add_argument("--areas", nargs="+", choices=list(TSO_AREA_MAP), default=list(TSO_AREA_MAP),
                     metavar="CODE", help=f"TSO area codes to process. Default: all. Options: {list(TSO_AREA_MAP.keys())}")
@@ -60,8 +60,19 @@ def main() -> None:
                     help="Seconds to wait between months (default: 5)")
     args = p.parse_args()
 
-    run_historical(args.start, args.end or previous_month(), args.areas,
-                    download=not args.no_download, delay_seconds=args.delay)
+    year, month = args.start
+    if month is None:                          # --start 2026 -> whole year
+        if args.end:
+            p.error("--end can't be combined with a year-only --start")
+        start, end = (year, 1), min((year, 12), current_month())
+    else:
+        start = (year, month)
+        end = args.end or previous_month()
+
+    if start > end:
+        p.error(f"start {start} is after end {end}")
+
+    run_historical(start, end, args.areas, download=not args.no_download, delay_seconds=args.delay)
 
 if __name__ == "__main__":
     main()

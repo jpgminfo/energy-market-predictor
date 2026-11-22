@@ -7,7 +7,7 @@
 from datetime import datetime, timedelta
 from pipeline import setup_logger, PipelineError, FetchError, ParseError
 from pipeline.scraper.base import fetcher
-from pipeline.scraper.base.periods import previous_month, current_month
+from pipeline.scraper.base.periods import previous_month, current_month, ym_str, y_str
 from pipeline import storage as st
 from pipeline.scraper.base.parser import (
     read_csv,
@@ -110,14 +110,10 @@ DIRECT_URLS = {
     "09": lambda ym: f"https://www.kyuden.co.jp/td_area_jukyu/csv/eria_jukyu_{ym}_09.csv?17390810",
 }
 
-CHUBU_URL    = lambda ym: f"https://powergrid.chuden.co.jp/denki_yoho_content_data/eria_jukyu_{ym}.zip",
 TOHOKU_URL   = lambda year, m0: f"https://setsuden.nw.tohoku-epco.co.jp/get_realtime_jukyu.php?year={year}&month={m0}"
+CHUBU_URL    = lambda ym: f"https://powergrid.chuden.co.jp/denki_yoho_content_data/eria_jukyu_{ym}.zip"
 HOKURIKU_URL = "https://www.rikuden.co.jp/nw/denki-yoho/results_jyukyu.html"
 CHUGOKU_URL  = "https://www.energia.co.jp/nw/jukyuu/eria_jukyu.html"
-
-
-def _ym_str(year: int, month: int) -> str:
-    return f"{year}{month:02d}"
 
 
 def _storage_path(area_code: str, ym: str) -> str:
@@ -154,7 +150,8 @@ def fetch_one(area_code: str, year: int, month: int) -> str:
     Returns storage_path on success.
     Raises FetchError on failure.
     """
-    ym = _ym_str(year, month)
+    ym = ym_str(year, month)
+    y = y_str(year)
     path = _storage_path(area_code, ym)
 
     if area_code in DIRECT_URLS:
@@ -163,6 +160,10 @@ def fetch_one(area_code: str, year: int, month: int) -> str:
 
     elif area_code == "02":
         url = TOHOKU_URL(year, f"{month:02d}")
+        return fetcher.fetch_zip_concat(url, path, skip_header_rows=2)
+
+    elif area_code == "04":
+        url = CHUBU_URL(y)
         return fetcher.fetch_zip_concat(url, path, skip_header_rows=2)
 
     elif area_code == "05":
@@ -213,7 +214,7 @@ def parse_one(area_code: str, year: int, month: int) -> list[dict]:
     if not area_db_code:
         raise ParseError(f"No area mapping for area_code: {area_code}")
 
-    ym = _ym_str(year, month)
+    ym = ym_str(year, month)
     path = _storage_path(area_code, ym)
 
     text = st.download_text(path)
@@ -302,7 +303,7 @@ def run(
     if year is None or month is None:
         year, month = previous_month()
 
-    ym = _ym_str(year, month)
+    ym = ym_str(year, month)
     codes = area_codes or list(TSO_AREA_MAP.keys())
 
     logger.info(f"TSO scraper starting — {ym}, areas: {codes}")
