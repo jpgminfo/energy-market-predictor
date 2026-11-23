@@ -8,10 +8,57 @@ SELECT
     EXTRACT(YEAR FROM target_date) AS year,
     COUNT(DISTINCT target_date) AS days,
     MIN(target_date) AS from_date,
-    MAX(target_date) AS to_date
+    MAX(target_date) AS to_date,
+    area_code,
+    count(1)
 FROM jepx_spot_prices
+GROUP BY year, area_code
+ORDER BY year, area_code;
+
+SELECT 
+    EXTRACT(YEAR FROM target_date) AS year,
+    COUNT(DISTINCT target_date) AS days,
+    MIN(target_date) AS from_date,
+    MAX(target_date) AS to_date,
+    count(1)
+FROM jepx_spot_summary
 GROUP BY year
 ORDER BY year;
+
+SELECT
+    EXTRACT(YEAR FROM target_date) AS year,
+    EXTRACT(MONTH FROM target_date) AS month,
+    COUNT(DISTINCT target_date) AS days,
+    MIN(target_date) AS from_date,
+    MAX(target_date) AS to_date,
+    count(1)
+FROM tso_area_supply_demand
+WHERE area_code = 'CHUBU'
+AND EXTRACT(YEAR FROM target_date) = '2024'
+GROUP BY year, month
+ORDER BY year, month;
+;
+
+
+SELECT
+    EXTRACT(YEAR FROM target_date) AS year,
+    EXTRACT(MONTH FROM target_date) AS month,
+    COUNT(DISTINCT target_date) AS days,
+    MIN(target_date) AS from_date,
+    MAX(target_date) AS to_date,
+    area_code,
+    count(1)
+FROM tso_area_supply_demand
+--WHERE 
+--EXTRACT(YEAR FROM target_date) = '2026'
+GROUP BY year, month, area_code
+ORDER BY year, month, area_code;
+;
+
+SELECT target_date, COUNT(*) AS slots, COUNT(area_demand) AS slots_with_demand
+FROM tso_area_supply_demand
+WHERE area_code = 'HOKKAIDO' AND target_date >= '2026-11-20'
+GROUP BY target_date ORDER BY target_date;
 
 SELECT 
     target_date,

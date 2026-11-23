@@ -36,7 +36,7 @@ def find_header_row(
 def _parse_time(time_str: str) -> datetime | None:
     """Parse HH:MM string, treating 24:00 as 00:00."""
     s = time_str.strip()
-    if s == "24:00":
+    if s == "24:00" or s == "24:00:00":
         s = "00:00"
     try:
         return datetime.strptime(s, "%H:%M")
